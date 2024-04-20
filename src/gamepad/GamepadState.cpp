@@ -1,5 +1,6 @@
 #include "GamepadState.h"
 #include "drivermanager.h"
+#include "pico/time.h"
 
 // Convert the horizontal GamepadState dpad axis value into an analog value
 uint16_t dpadToAnalogX(uint8_t dpad)
@@ -105,7 +106,32 @@ uint8_t runSOCDCleaner(SOCDMode mode, uint8_t dpad)
 
 	static DpadDirection lastUD = DIRECTION_NONE;
 	static DpadDirection lastLR = DIRECTION_NONE;
+	static DpadDirection newTemporalDirection = DIRECTION_NONE;
+	static DpadDiagonalDirection lastDiagonal = DIAGONAL_DIRECTION_NONE;
 	uint8_t newDpad = 0;
+	static uint64_t timer = 0;
+	static uint64_t timerLastDiagonal = 0;
+	uint64_t currentTime = to_ms_since_boot(get_absolute_time());
+	if (timerLastDiagonal < currentTime) {
+		lastDiagonal = DIAGONAL_DIRECTION_NONE;
+	}
+	if (newTemporalDirection != DIRECTION_NONE) {
+		if (timer > currentTime) {
+			if (newTemporalDirection == DIRECTION_UP) {
+				newDpad = GAMEPAD_MASK_UP;
+			} else if (newTemporalDirection == DIRECTION_DOWN) {
+				newDpad = GAMEPAD_MASK_DOWN;
+			} else if (newTemporalDirection == DIRECTION_LEFT) {
+				newDpad = GAMEPAD_MASK_LEFT;
+			} else if (newTemporalDirection == DIRECTION_RIGHT) {
+				newDpad = GAMEPAD_MASK_RIGHT;
+			}
+			return newDpad;
+		} else {
+			newTemporalDirection = DIRECTION_NONE;
+			timer = 0;
+		}
+	}
 
 	switch (dpad & (GAMEPAD_MASK_UP | GAMEPAD_MASK_DOWN))
 	{
@@ -162,6 +188,59 @@ uint8_t runSOCDCleaner(SOCDMode mode, uint8_t dpad)
 		default:
 			lastLR = DIRECTION_NONE;
 			break;
+	}
+	if (newDpad == GAMEPAD_MASK_DOWN_LEFT) {
+		timerLastDiagonal = 17 + currentTime;
+		if (lastDiagonal == DIAGONAL_DIRECTION_DOWN_RIGHT) {
+			newTemporalDirection = DIRECTION_DOWN;
+			lastDiagonal = DIAGONAL_DIRECTION_NONE;
+			timer = currentTime + 17;
+		} else if (lastDiagonal == DIAGONAL_DIRECTION_UP_LEFT) {
+			newTemporalDirection = DIRECTION_LEFT;
+			lastDiagonal = DIAGONAL_DIRECTION_NONE;
+			timer = currentTime + 17;
+		} else {
+			lastDiagonal = DIAGONAL_DIRECTION_DOWN_LEFT;
+		}
+	} else if (newDpad == GAMEPAD_MASK_DOWN_RIGHT) {
+		timerLastDiagonal = 17 + currentTime;
+		if (lastDiagonal == DIAGONAL_DIRECTION_DOWN_LEFT) {
+			newTemporalDirection = DIRECTION_DOWN;
+			lastDiagonal = DIAGONAL_DIRECTION_NONE;
+			timer = currentTime + 17;
+		} else if (lastDiagonal == DIAGONAL_DIRECTION_UP_RIGHT) {
+			newTemporalDirection = DIRECTION_RIGHT;
+			lastDiagonal = DIAGONAL_DIRECTION_NONE;
+			timer = currentTime + 17;
+		} else {
+			lastDiagonal = DIAGONAL_DIRECTION_DOWN_RIGHT;
+		}
+	} else if (newDpad == GAMEPAD_MASK_UP_LEFT) {
+		timerLastDiagonal = 17 + currentTime;
+		if (lastDiagonal == DIAGONAL_DIRECTION_UP_RIGHT) {
+			newTemporalDirection = DIRECTION_UP;
+			lastDiagonal = DIAGONAL_DIRECTION_NONE;
+			timer = currentTime + 17;
+		} else if (lastDiagonal == DIAGONAL_DIRECTION_DOWN_LEFT) {
+			newTemporalDirection = DIRECTION_LEFT;
+			lastDiagonal = DIAGONAL_DIRECTION_NONE;
+			timer = currentTime + 17;
+		} else {
+			lastDiagonal = DIAGONAL_DIRECTION_UP_LEFT;
+		}
+	} else if (newDpad == GAMEPAD_MASK_UP_RIGHT) {
+		timerLastDiagonal = 17 + currentTime;
+		if (lastDiagonal == DIAGONAL_DIRECTION_UP_LEFT) {
+			newTemporalDirection = DIRECTION_UP;
+			lastDiagonal = DIAGONAL_DIRECTION_NONE;
+			timer = currentTime + 17;
+		} else if (lastDiagonal == DIAGONAL_DIRECTION_DOWN_RIGHT) {
+			newTemporalDirection = DIRECTION_RIGHT;
+			lastDiagonal = DIAGONAL_DIRECTION_NONE;
+			timer = currentTime + 17;
+		} else {
+			lastDiagonal = DIAGONAL_DIRECTION_UP_RIGHT;
+		}
 	}
 
 	return newDpad;
